@@ -1,0 +1,95 @@
+
+This is the README for maildirfolder.
+
+
+Q) What is maildirfolder?
+A) maildirfolder assists delivery of sub-addressed messages directly into matching courier-imap Maildir folders.
+
+
+EXAMPLE:
+
+You are subscribed to the goatlovers mailing list as bob-goatlovers@weirdbob.com.
+You want any email addressed to your address of bob-goatlovers to be delivered into a goatlovers folder in your imap account.
+
+The old way:
+
+# echo "./Maildir/.goatlovers/" > .qmail-goatlovers
+
+Repeat for each mailing list you subscribe to.  If you ever move your goatlovers folder via your imap client, edit the .qmail file to reflect that.
+
+The new way with maildirfolder:
+# echo "|maildirfolder ./Maildir/" > .qmail-default
+
+Thats it.  maildirfolder will lookup goatlovers in your ./Maildir/courierimapsubscribed file and use safecat to deliver the message directly to
+that directory, as if you had specified ./Maildir/.path.to.goatlovers.folder/ in your .qmail file.
+Moving the goatlovers imap folder will not screw anything up.
+
+Mapping subaddress A-B-C to a folder name occurs in the following order:
+
+ Foldername
+ ----------
+ A.B.C         (ie. exact match)
+ A.B           (drop the last part of the address and then try to find an exact match)
+ A             (drop the last 2)
+ *.A.B.C       (find a unique A.B.C anywhere in the folder list)
+ *.A.B         (find a unique A.B anywhere)
+ *.A           (hell, can I just find A?)
+
+Lookup example:
+bob-goatlovers-announce@weirdbob.com, when delivered via your .qmail-default file, the EXT env var will be just goatlovers-announce.
+The foldernames that will be looked up will be:
+ 1) goatlovers.announce
+ 2) goatlovers
+ 3) *.goatlovers.announce
+ 4) *.goatlovers
+
+And if all lookups fail, maildirfolder will default back to the base ./Maildir/
+If there is a trailing match (*.A.B.C), it must be unique.
+
+
+SECURITY ISSUES:
+Hostile email messages can be delivered into any imap folder you have setup.
+Create a ./Maildir/hiddenfolders files and list the folders you don't want maildirfolder to deliver to.  (Same format as courierimapsubscribed.)
+If the hiddenfolders file is absent, Sent, Trash, and Drafts are excluded by default.
+
+
+REQUIREMENTS:
+courier-imap managed Maildir folders
+safecat (in the path)
+.qmail delivery files
+
+COMPILING:
+make maildirfolder
+
+INSTALLATION:
+cp maildirfolder /usr/local/bin/maildirfolder
+echo "|maildirfolder ./Maildir/" > .qmail-default
+
+USAGE:
+maildirfolder <path_to_courier-imap_maildir> [-d]
+
+-d causes some info to be logged to syslog's mail log.
+
+RUNTIME ERRORS:
+All runtime errors cause a exit with a value of 111 (qmail temporary failure, try again)
+
+"Missing dest maildir argument" - you need to specify the maildir path as the first argument... ie. maildirfolder ./Maildir/
+"Maildir path too short ( <2 ): <path>" - the maildir path is really short and I'm nervous
+"Bad or missing tmp maildir dir: <path>/tmp" - couldn't stat the folder's tmp dir, or it wasn't a directory
+"Bad or missing new maildir dir: <path>/new" - same as tmp
+"Bad or missing safecat" - exec failed when trying to run safecat.  Is it in the path?
+
+DEBUGGING:
+
+Debugging address to folder lookup failures:
+verify that your EXT env var is showing your subaddress correctly:
+
+Add -d to end of maildirfolder line, so that your .qmail file looks like:
+|maildirfolder ./Maildir/ -d
+
+Send another test message to your subaddress (ie. bob-goatlovers@weirdbob.com)
+
+tail your syslog'd maillog, look for lines that start with maildirfolder.
+
+EXT should be whatever is after your main userid... ie. in this example, just "goatlovers".
+
